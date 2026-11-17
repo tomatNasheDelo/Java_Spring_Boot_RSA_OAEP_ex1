@@ -1,0 +1,83 @@
+Spring Boot + Java: асимметричное шифрование RSA-OAEP
+=====================================================
+
+Цель проекта
+------------
+
+Показать базовый пример асимметричного шифрования с Java Cryptography Architecture (JCA):
+
+- ключи: RSA 2048+;
+- преобразование: `RSA/ECB/OAEPWithSHA-256AndMGF1Padding`;
+- public key используется для шифрования;
+- private key используется для расшифровки;
+- приватный ключ должен храниться только в безопасном хранилище;
+- используется Base64 для передачи ciphertext в JSON.
+
+Этот пример демонстрирует понятие асимметричной криптографии в учебном режиме. Для реального приложения обычно комбинируют RSA/OAEP с AES-GCM: AES шифрует содержимое, а RSA шифрует случайный AES-ключ для ключевого обмена.
+
+Требования
+----------
+
+- JDK 17+
+- Gradle 8+
+- OpenSSL для генерации ключей
+
+Генерация ключей
+-----------------
+
+```bash
+openssl genrsa -out private.pem 2048
+openssl rsa -in private.pem -pubout -out public.pem
+```
+
+Экспортируйте ключи в окружение:
+
+```bash
+export RSA_PUBLIC_KEY_PEM="$(cat public.pem)"
+export RSA_PRIVATE_KEY_PEM="$(cat private.pem)"
+gradle bootRun
+```
+
+Обычно key pair берут из protected storage / KMS. Не храните private key в репозитории, даже в учебной среде.
+
+REST API
+--------
+
+Шифрование:
+
+```bash
+curl -sS -X POST http://localhost:8080/api/crypto/encrypt \
+  -H 'Content-Type: application/json' \
+  -d '{"plaintext":"Demo secret"}'
+```
+
+Расшифровка:
+
+```bash
+curl -sS -X POST http://localhost:8080/api/crypto/decrypt \
+  -H 'Content-Type: application/json' \
+  -d '{"ciphertextBase64":"<base64 ciphertext>"}'
+```
+
+Тесты
+-----
+
+```bash
+gradle test
+```
+
+Интеграционный тест использует MockMvc через Spring context. Он не требует базы. Unit-тест `RsaOaepServiceTest` проверяет round-trip и invalid Base64.
+
+Принципы безопасности
+---------------------
+
+- Не храните private key вместе с кодом.
+- Для больших сообщений используйте гибридную схему: `AES-GCM` + `RSA-OAEP` для ключа.
+- Для подписи и проверки подлинности используйте RSA/ECDSA, а не только шифрование.
+- OAEP уязвим к неправильной настройке параметров и неверному ключу, поэтому проверяйте длину ключа и корректность PEM.
+- Обязательно используйте TLS для передачи ключей/ciphertexts по сети.
+
+Следующий шаг после этого проекта:
+- RSA-OAEP + AES-GCM hybrid
+- ECDSA signature demo
+- JWT + asymmetric key signing flow
